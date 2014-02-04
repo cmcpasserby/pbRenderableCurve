@@ -13,7 +13,7 @@ class UI(object):
             with pm.columnLayout():
                 with pm.frameLayout(l='Selection:', cll=True, bs='out'):
                     with pm.rowLayout(nc=2):
-                        pm.button(l='Make Renderable', c=self.makeRenderable)
+                        pm.button(l='Make Renderable')
                         pm.button(l='Remove Renderable')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out'):
@@ -30,24 +30,29 @@ class UI(object):
 
 class Curve(object):
     def __init__(self):
-        pass
-
-    def makeRenderable(self, *args):
         sel = pm.selected()
-        stroke, brush = self.createBrush(sel[0])
-        self.strokeToMesh(stroke, brush)
+        self.createBrush(sel[0])
+        self.strokeToMesh()
+
+        # Attributes
+        self.thickness = self.brush.brushWidth
+        self.sides = self.brush.tubeSections
+        self.samples = self.stroke.sampleDensity
 
     def createBrush(self, curve):
-        brush = pm.createNode('brush', name='{0}Brush'.format(curve))
-        stroke = pm.stroke(name='{0}Stroke'.format(curve), seed=0, pressure=True)
+        self.brush = pm.createNode('brush', name='{0}Brush'.format(curve))
+        self.stroke = pm.stroke(name='{0}Stroke'.format(curve), seed=0, pressure=True)
 
-        brush.outBrush.connect(stroke.brush)
-        pm.connectAttr('time1.outTime', brush.time)
+        self.brush.outBrush.connect(self.stroke.brush)
+        pm.connectAttr('time1.outTime', self.brush.time)
 
         # Brush Defualts
-        brush.brushWidth.set(1)
-        brush.tubeSections.set(8)
-        brush.strokeTime.set(1)
+        self.brush.brushWidth.set(1)
+        self.brush.tubeSections.set(8)
+        self.brush.strokeTime.set(1)
+
+        # Brush type mesh
+        self.brush.brushType.set(5)
 
         # set divisions
         spans = curve.spans.get()
@@ -56,24 +61,33 @@ class Curve(object):
         if deg > 1:
             samples = (spans * 5) + 1
 
-        stroke.getShape().pathCurve[0].samples.set(samples)
+        self.stroke.getShape().pathCurve[0].samples.set(samples)
 
-        stroke.useNormal.set(0)
-        stroke.normalY.set(1.0)
+        self.stroke.useNormal.set(0)
+        self.stroke.normalY.set(1.0)
 
-        curve.ws.connect(stroke.getShape().pathCurve[0].curve)
+        curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
 
-        stroke.perspective.set(1)
-        stroke.displayPercent.set(100.0)
+        self.stroke.perspective.set(1)
+        self.stroke.displayPercent.set(100.0)
 
-        return stroke, brush
+        return self.stroke, self.brush
 
-    def strokeToMesh(self, stroke, brush):
+    def strokeToMesh(self):
         # Stroke settings
-        stroke.meshVertexColorMode.set(0)
-        stroke.meshQuadOutput.set(1)
+        self.stroke.meshVertexColorMode.set(0)
+        self.stroke.meshQuadOutput.set(1)
+        self.stroke.meshPolyLimit.set(100000)
 
         # output mesh stuff
-        meshName = brush.replace('Brush', "Mesh")
+        meshName = self.brush.replace('Brush', "Mesh")
         mesh = pm.createNode('mesh', n='%sShape' % meshName)
-        print mesh
+        self.stroke.getShape().worldMainMesh[0].connect(mesh.inMesh)
+
+        # Display mesh as ref
+        mesh.overrideDisplayType.set(2)
+        self.stroke.visibility.set(0)
+
+        # brushType = self.brush.brushType.get()
+        # hardEdges = self.brush.hardEdges.get()
+        # self.stroke.meshHardEdges.set(hardEdges)
