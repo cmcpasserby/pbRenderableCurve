@@ -20,12 +20,9 @@ class UI(object):
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
-                        self.attrs = [IntAttr(1, 0, 128, 'Thickness'),
+                        self.attrs = [FloatAttr(1.0, 0.0, 128.0, 'Thickness'),
                                       IntAttr(3, 3, 64, 'Sides'),
                                       IntAttr(1, 1, 32, 'Samples')]
-                        # self.thickness = pm.intSliderGrp(l='Thickness:', f=True)
-                        # self.sides = pm.intSliderGrp(l='Sides', f=True)
-                        # self.samples = pm.intSliderGrp(l='Samples', f=True)
 
         window.show()
         pm.scriptJob(event=['SelectionChanged', self.refresh], protected=True, p=window)
@@ -119,8 +116,6 @@ class Curve(object):
         self.stroke.perspective.set(1)
         self.stroke.displayPercent.set(100.0)
 
-        return self.stroke, self.brush
-
     def strokeToMesh(self):
         # Stroke settings
         self.stroke.meshVertexColorMode.set(0)
@@ -133,6 +128,7 @@ class Curve(object):
         self.stroke.getShape().worldMainMesh[0].connect(mesh.inMesh)
 
         # Display mesh as ref
+        mesh.overrideEnabled.set(1)
         mesh.overrideDisplayType.set(2)
         self.stroke.visibility.set(0)
 
@@ -159,7 +155,27 @@ class IntAttr(object):
         try:
             value = getattr(getCurves()[0], self.name.lower()).get()
             self.attr.setValue(value)
-        except:
+        except AttributeError:
+            pass
+
+    def set(self, *args):
+        getattr(getCurves()[0], self.name.lower()).set(self.attr.getValue())
+
+    def setEnable(self, val):
+        self.attr.setEnable(val)
+
+
+class FloatAttr(object):
+    def __init__(self, value, minValue, maxValue, name):
+        self.name = name
+        self.attr = pm.floatSliderGrp(field=True, l=self.name, minValue=minValue, maxValue=maxValue,
+                                      cc=self.set, dc=self.set, pre=3)
+
+    def get(self, *args):
+        try:
+            value = getattr(getCurves()[0], self.name.lower()).get()
+            self.attr.setValue(value)
+        except AttributeError:
             pass
 
     def set(self, *args):
