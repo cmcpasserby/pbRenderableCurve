@@ -15,68 +15,81 @@ class UI(object):
                     with pm.columnLayout():
                         self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:')
                         with pm.rowLayout(nc=2):
-                            self.renderableUI = pm.checkBox(l='Renderable')
+                            self.renderableUI = pm.checkBox(l='Renderable', cc=self.bcRenderable)
                             pm.checkBox(l='Mesh Selection')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
-                        pm.radioButtonGrp(l='Polygon Type:', sl=0, nrb=2,
-                                          labelArray2=['Quads', 'Tris'])
-
-                        pm.intSliderGrp(l='Thickness:', f=True)
-                        pm.intSliderGrp(l='Sides', f=True)
-                        pm.intSliderGrp(l='Samples', f=True)
+                        self.attrs = [IntAttr(1, 0, 128, 'Thickness'),
+                                      IntAttr(3, 3, 64, 'Sides'),
+                                      IntAttr(1, 1, 32, 'Samples')]
+                        # self.thickness = pm.intSliderGrp(l='Thickness:', f=True)
+                        # self.sides = pm.intSliderGrp(l='Sides', f=True)
+                        # self.samples = pm.intSliderGrp(l='Samples', f=True)
 
         window.show()
         pm.scriptJob(event=['SelectionChanged', self.refresh], protected=True, p=window)
         self.refresh()
 
     def refresh(self):
-        curves = self.getCurves()
+        curves = getCurves()
         if len(curves) == 1:
             self.selField.setText(curves[0])
-            self.meshUI.setEnable(True)
-            self.isRenderable(curves)
+            self.renderableUI.setValue(curves[0].isRenderable())
+            self.getValues()
         elif len(curves) > 1:
             self.selField.setText('{0} Curves Selected'.format(len(curves)))
-            self.meshUI.setEnable(True)
-            self.isRenderable(curves)
+            self.renderableUI.setValue(all(i.isRenderable() for i in curves))
+            self.getValues()
         else:
             self.selField.setText('No Curves Selected')
-            self.meshUI.setEnable(False)
-            self.renerableUI.setValue(False)
+            self.renderableUI.setValue(False)
+            self.setEnable(False)
 
-    def getCurves(self):
-        sel = pm.selected()
-        curveList = []
-        if sel:
-            for i in sel:
-                if isinstance(i.getShape(), pm.nt.NurbsCurve):
-                    curveList.append(Curve(i.getShape()))
-        return curveList
+    def bcRenderable(self, *args):
+        curves = getCurves()
+        if not curves[0].isRenderable():
+            curves[0].makeRenderable()
+        else:
+            curves[0].makeNonRenderable()
+        self.refresh()
 
-    def isRenderable(self, curves):
-        pass
+    def getValues(self):
+        for i in self.attrs:
+            i.get()
+            i.setEnable(True)
+
+    def setEnable(self, val):
+        for i in self.attrs:
+            i.setEnable(val)
 
 
 class Curve(object):
     def __init__(self, curve):
         self.curve = curve
 
-        # self.createBrush(self.curve)
-        # self.strokeToMesh()
+        if self.isRenderable():
+            self.stroke = self.curve.getShape().connections(shapes=True, type='stroke')[0]
+            self.brush = self.stroke.connections(type='brush')[0]
 
-        # Curve Attributes
-        # self.thickness = self.brush.brushWidth
-        # self.sides = self.brush.tubeSections
-        # self.samples = self.stroke.sampleDensity
+            self.thickness = self.brush.brushWidth
+            self.sides = self.brush.tubeSections
+            self.samples = self.stroke.sampleDensity
 
-    def makeRenderable(self, curve):
+    def __str__(self):
+        return str(self.curve)
+
+    def makeRenderable(self):
+        self.createBrush()
+        self.strokeToMesh()
+        self.curve.select()
+
+    def makeNonRenderable(self):
         pass
 
-    def createBrush(self, curve):
-        self.brush = pm.createNode('brush', name='{0}Brush'.format(curve))
-        self.stroke = pm.stroke(name='{0}Stroke'.format(curve), seed=0, pressure=True)
+    def createBrush(self):
+        self.brush = pm.createNode('brush', name='{0}Brush'.format(self.curve))
+        self.stroke = pm.stroke(name='{0}Stroke'.format(self.curve), seed=0, pressure=True)
 
         self.brush.outBrush.connect(self.stroke.brush)
         pm.connectAttr('time1.outTime', self.brush.time)
@@ -90,8 +103,8 @@ class Curve(object):
         self.brush.brushType.set(5)
 
         # set divisions
-        spans = curve.spans.get()
-        deg = curve.degree.get()
+        spans = self.curve.spans.get()
+        deg = self.curve.degree.get()
         samples = (spans + 1) * deg
         if deg > 1:
             samples = (spans * 5) + 1
@@ -101,7 +114,7 @@ class Curve(object):
         self.stroke.useNormal.set(0)
         self.stroke.normalY.set(1.0)
 
-        curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
+        self.curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
 
         self.stroke.perspective.set(1)
         self.stroke.displayPercent.set(100.0)
@@ -123,13 +136,44 @@ class Curve(object):
         mesh.overrideDisplayType.set(2)
         self.stroke.visibility.set(0)
 
-        # brushType = self.brush.brushType.get()
-        # hardEdges = self.brush.hardEdges.get()
-        # self.stroke.meshHardEdges.set(hardEdges)
+        # lambert Shadeing
+        sg = pm.PyNode('initialShadingGroup')
+        sg.add(mesh)
 
     def isRenderable(self):
-        strokes = self.curve.getShape()
-        if len(strokes):
+        strokes = self.curve.getShape().connections(shapes=True, type='stroke')
+        if strokes:
             return True
         else:
             return False
+
+
+class IntAttr(object):
+    def __init__(self, value, minValue, maxValue, name):
+        self.name = name
+
+        self.attr = pm.intSliderGrp(field=True, l=self.name, minValue=minValue, maxValue=maxValue,
+                                    cc=self.set, dc=self.set)
+
+    def get(self, *args):
+        try:
+            value = getattr(getCurves()[0], self.name.lower()).get()
+            self.attr.setValue(value)
+        except:
+            pass
+
+    def set(self, *args):
+        getattr(getCurves()[0], self.name.lower()).set(self.attr.getValue())
+
+    def setEnable(self, val):
+        self.attr.setEnable(val)
+
+
+def getCurves():
+    sel = pm.selected()
+    curveList = []
+    if sel:
+        for i in sel:
+            if isinstance(i.getShape(), pm.nt.NurbsCurve):
+                curveList.append(Curve(i))
+    return curveList
