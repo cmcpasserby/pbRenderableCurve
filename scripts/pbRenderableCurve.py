@@ -12,11 +12,13 @@ class UI(object):
         with pm.window('pbRCurve', title='{0} | {1}'.format(title, version), s=False) as window:
             with pm.columnLayout():
                 with pm.frameLayout(l='Selection:', cll=True, bs='out'):
-                    with pm.rowLayout(nc=2):
-                        pm.button(l='Make Renderable')
-                        pm.button(l='Remove Renderable')
+                    with pm.columnLayout():
+                        self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:')
+                        with pm.rowLayout(nc=2):
+                            self.renderableUI = pm.checkBox(l='Renderable')
+                            pm.checkBox(l='Mesh Selection')
 
-                with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out'):
+                with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
                         pm.radioButtonGrp(l='Polygon Type:', sl=0, nrb=2,
                                           labelArray2=['Quads', 'Tris'])
@@ -26,18 +28,51 @@ class UI(object):
                         pm.intSliderGrp(l='Samples', f=True)
 
         window.show()
+        pm.scriptJob(event=['SelectionChanged', self.refresh], protected=True, p=window)
+        self.refresh()
+
+    def refresh(self):
+        curves = self.getCurves()
+        if len(curves) == 1:
+            self.selField.setText(curves[0])
+            self.meshUI.setEnable(True)
+            self.isRenderable(curves)
+        elif len(curves) > 1:
+            self.selField.setText('{0} Curves Selected'.format(len(curves)))
+            self.meshUI.setEnable(True)
+            self.isRenderable(curves)
+        else:
+            self.selField.setText('No Curves Selected')
+            self.meshUI.setEnable(False)
+            self.renerableUI.setValue(False)
+
+    def getCurves(self):
+        sel = pm.selected()
+        curveList = []
+        if sel:
+            for i in sel:
+                if isinstance(i.getShape(), pm.nt.NurbsCurve):
+                    curveList.append(Curve(i.getShape()))
+        return curveList
+
+    def isRenderable(self, curves):
+        pass
 
 
 class Curve(object):
-    def __init__(self):
-        sel = pm.selected()
-        self.createBrush(sel[0])
-        self.strokeToMesh()
+    def __init__(self, curve):
+        self.curve = curve
 
-        # Attributes
-        self.thickness = self.brush.brushWidth
-        self.sides = self.brush.tubeSections
-        self.samples = self.stroke.sampleDensity
+        # self.createBrush(self.curve)
+        # self.strokeToMesh()
+
+        # Curve Attributes
+        # self.thickness = self.brush.brushWidth
+        # self.sides = self.brush.tubeSections
+        # self.samples = self.stroke.sampleDensity
+
+    def makeRenderable(self, curve):
+        pass
 
     def createBrush(self, curve):
         self.brush = pm.createNode('brush', name='{0}Brush'.format(curve))
@@ -91,3 +126,10 @@ class Curve(object):
         # brushType = self.brush.brushType.get()
         # hardEdges = self.brush.hardEdges.get()
         # self.stroke.meshHardEdges.set(hardEdges)
+
+    def isRenderable(self):
+        strokes = self.curve.getShape()
+        if len(strokes):
+            return True
+        else:
+            return False
