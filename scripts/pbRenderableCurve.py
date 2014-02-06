@@ -82,7 +82,10 @@ class Curve(object):
         self.curve.select()
 
     def makeNonRenderable(self):
-        pass
+        mesh = self.stroke.worldMainMesh[0].connections(shapes=True, type='mesh')
+        pm.delete(self.brush)
+        pm.delete(self.stroke.getParent())
+        pm.delete(mesh[0].getParent())
 
     def createBrush(self):
         self.brush = pm.createNode('brush', name='{0}Brush'.format(self.curve))
