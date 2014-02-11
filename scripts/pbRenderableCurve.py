@@ -29,19 +29,22 @@ class UI(object):
         self.refresh()
 
     def refresh(self):
-        curves = getCurves()
-        if len(curves) == 1:
-            self.selField.setText(curves[0])
-            self.renderableUI.setValue(curves[0].isRenderable())
-            self.getValues()
-        elif len(curves) > 1:
-            self.selField.setText('{0} Curves Selected'.format(len(curves)))
-            self.renderableUI.setValue(all(i.isRenderable() for i in curves))
-            self.getValues()
-        else:
-            self.selField.setText('No Curves Selected')
-            self.renderableUI.setValue(False)
-            self.setEnable(False)
+        try:
+            curves = getCurves()
+            if len(curves) == 1:
+                self.selField.setText(curves[0])
+                self.renderableUI.setValue(curves[0].isRenderable())
+                self.getValues()
+            elif len(curves) > 1:
+                self.selField.setText('{0} Curves Selected'.format(len(curves)))
+                self.renderableUI.setValue(all(i.isRenderable() for i in curves))
+                self.getValues()
+            else:
+                self.selField.setText('No Curves Selected')
+                self.renderableUI.setValue(False)
+                self.setEnable(False)
+        except:
+            pass
 
     def bcRenderable(self, *args):
         curves = getCurves()
@@ -189,7 +192,7 @@ class FloatAttr(object):
 
 
 def getCurves():
-    sel = pm.selected()
+    sel = pm.ls(sl=True, l=True, type='transform')
     curveList = []
     if sel:
         for i in sel:
