@@ -13,38 +13,60 @@ class UI(object):
             with pm.columnLayout():
                 with pm.frameLayout(l='Selection:', cll=True, bs='out'):
                     with pm.columnLayout():
-                        self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:')
+                        self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:', cw2=[72, 192])
                         with pm.rowLayout(nc=2):
                             self.renderableUI = pm.checkBox(l='Renderable', cc=self.bcRenderable)
                             pm.checkBox(l='Mesh Selection')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
-                        self.attrs = [FloatAttr(1.0, 0.0, 128.0, 'Thickness'),
-                                      IntAttr(3, 3, 64, 'Sides'),
-                                      IntAttr(1, 1, 32, 'Samples')]
+                        self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float'),
+                                          AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves),
+                                          AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves)]
+
+                with pm.frameLayout('Shell Settings:', cll=True, bs='out') as self.shellUI:
+                    with pm.columnLayout():
+                        self.bShell = pm.checkBox(l='Enable Shell', cc=self.bcShell)
+                        self.shellAttrs = [AttrSlider(value=1, minValue=-64, maxValue=64, name='ShellThickness', obj=getCurves, type_='float'),
+                                           AttrSlider(value=1, minValue=1, maxValue=64, name='ShellDivisions', obj=getCurves)]
 
         window.show()
         pm.scriptJob(event=['SelectionChanged', self.refresh], protected=True, p=window)
         self.refresh()
 
     def refresh(self):
-        try:
-            curves = getCurves()
-            if len(curves) == 1:
-                self.selField.setText(curves[0])
-                self.renderableUI.setValue(curves[0].isRenderable())
+        curves = getCurves()
+        if len(curves) == 1:
+            self.selField.setText(curves[0])
+
+    def refresh_(self):
+        # try:
+        curves = getCurves()
+        if len(curves) == 1:
+            self.selField.setText(curves[0])
+            if curves[0].isRenderable():
+                self.renderableUI.setValue(True)
+                if curves[0].hasShell():
+                    self.bShell.setValue(True)
                 self.getValues()
-            elif len(curves) > 1:
-                self.selField.setText('{0} Curves Selected'.format(len(curves)))
-                self.renderableUI.setValue(all(i.isRenderable() for i in curves))
-                self.getValues()
-            else:
-                self.selField.setText('No Curves Selected')
-                self.renderableUI.setValue(False)
-                self.setEnable(False)
-        except:
-            pass
+
+        elif len(curves) > 1:
+            self.selField.setText('{0} Curves Selected'.format(len(curves)))
+            self.renderableUI.setValue(all(i.isRenderable() for i in curves))
+            self.bShell.setValue(curves[0].hasShell())
+            self.getValues()
+
+        else:
+            self.selField.setText('No Curves Selected')
+            self.renderableUI.setValue(False)
+            self.bShell.setValue(False)
+            for i in self.meshAttrs:
+                i.setEnable(False)
+
+            for i in self.shellAttrs:
+                i.setEnable(False)
+        # except:
+            # pm.warning('ScriptJob Failed!')
 
     def bcRenderable(self, *args):
         curves = getCurves()
@@ -54,14 +76,27 @@ class UI(object):
             curves[0].makeNonRenderable()
         self.refresh()
 
+    def bcShell(self, *args):
+        curves = getCurves()
+        if curves[0].isRenderable():
+            if not curves[0].hasShell():
+                curves[0].makeShell()
+            else:
+                curves[0].makeNonShell()
+
+        curves[0].curve.select()
+        self.refresh()
+
     def getValues(self):
-        for i in self.attrs:
+        curves = getCurves()
+        for i in self.meshAttrs:
             i.get()
             i.setEnable(True)
 
-    def setEnable(self, val):
-        for i in self.attrs:
-            i.setEnable(val)
+        if curves[0].hasShell():
+            for i in self.shellAttrs:
+                i.get()
+                i.setEnable(True)
 
 
 class Curve(object):
@@ -69,12 +104,21 @@ class Curve(object):
         self.curve = curve
 
         if self.isRenderable():
-            self.stroke = self.curve.getShape().connections(shapes=True, type='stroke')[0]
-            self.brush = self.stroke.connections(type='brush')[0]
+            self.stroke = self.curve.getShape().connections(shapes=True, type=pm.nt.Stroke)[0]
+            self.brush = self.stroke.connections(type=pm.nt.Brush)[0]
 
             self.thickness = self.brush.brushWidth
             self.sides = self.brush.tubeSections
             self.samples = self.stroke.sampleDensity
+
+            self.mesh = self.stroke.worldMainMesh[0].connections()[0]
+            if isinstance(self.mesh, pm.nt.PolyExtrudeFace):
+                self.mesh = self.mesh.connections(type=pm.nt.Mesh)[0]
+
+            if self.hasShell():
+                self.extrudeNode = self.mesh.getShape().connections(type=pm.nt.PolyExtrudeFace)[0]
+                self.shellthickness = self.extrudeNode.thickness
+                self.shelldivisions = self.extrudeNode.divisions
 
     def __str__(self):
         return str(self.curve)
@@ -85,10 +129,19 @@ class Curve(object):
         self.curve.select()
 
     def makeNonRenderable(self):
-        mesh = self.stroke.worldMainMesh[0].connections(shapes=True, type='mesh')
+        if self.hasShell():
+            self.makeNonShell()
+        mesh = self.stroke.worldMainMesh[0].connections(shapes=True, type=pm.nt.Mesh)
         pm.delete(self.brush)
         pm.delete(self.stroke.getParent())
         pm.delete(mesh[0].getParent())
+
+    def makeShell(self):
+        self.ExtrudeNode = pm.polyExtrudeFacet(self.mesh, thickness=1)
+
+    def makeNonShell(self):
+        pm.delete(self.extrudeNode)
+        self.curve.select()
 
     def createBrush(self):
         self.brush = pm.createNode('brush', name='{0}Brush'.format(self.curve))
@@ -130,69 +183,63 @@ class Curve(object):
 
         # output mesh stuff
         meshName = self.brush.replace('Brush', "Mesh")
-        mesh = pm.createNode('mesh', n='%sShape' % meshName)
-        self.stroke.getShape().worldMainMesh[0].connect(mesh.inMesh)
+        self.mesh = pm.createNode('mesh', n='%sShape' % meshName)
+        self.stroke.getShape().worldMainMesh[0].connect(self.mesh.inMesh)
 
         # Display mesh as ref
-        mesh.overrideEnabled.set(1)
-        mesh.overrideDisplayType.set(2)
+        self.mesh.overrideEnabled.set(1)
+        self.mesh.overrideDisplayType.set(2)
         self.stroke.visibility.set(0)
 
         # lambert Shadeing
         sg = pm.PyNode('initialShadingGroup')
-        sg.add(mesh)
+        sg.add(self.mesh)
 
     def isRenderable(self):
-        strokes = self.curve.getShape().connections(shapes=True, type='stroke')
+        strokes = self.curve.getShape().connections(shapes=True, type=pm.nt.Stroke)
         if strokes:
             return True
         else:
             return False
 
+    def hasShell(self):
+        meshShape = self.mesh.getShape()
+        if isinstance(meshShape.inMesh.connections()[0], pm.nt.PolyExtrudeFace):
+            return True
+        else:
+            return False
 
-class IntAttr(object):
-    def __init__(self, value, minValue, maxValue, name):
+
+class AttrSlider(object):
+    def __init__(self, value=0, minValue=0, maxValue=32, name=None, obj=None, type_='int'):
         self.name = name
+        self.obj = obj
 
-        self.attr = pm.intSliderGrp(field=True, l=self.name, minValue=minValue, maxValue=maxValue,
-                                    cc=self.set, dc=self.set)
+        if type_ == 'float':
+            self.attr_ = pm.floatSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
+                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128])
+        elif type_ == 'int':
+            self.attr_ = pm.intSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
+                                         cc=self.set, dc=self.set, cw3=[72, 64, 128])
+        else:
+            raise AttributeError('%s is not a valid type' % type_)
 
     def get(self, *args):
         try:
-            value = getattr(getCurves()[0], self.name.lower()).get()
-            self.attr.setValue(value)
+            value = getattr(self.obj()[0], self.name.lower()).get()
+            self.attr_.setValue(value)
         except AttributeError:
             pass
 
     def set(self, *args):
-        getattr(getCurves()[0], self.name.lower()).set(self.attr.getValue())
+        getattr(self.obj()[0], self.name.lower()).set(self.attr_.getValue())
 
     def setEnable(self, val):
-        self.attr.setEnable(val)
-
-
-class FloatAttr(object):
-    def __init__(self, value, minValue, maxValue, name):
-        self.name = name
-        self.attr = pm.floatSliderGrp(field=True, l=self.name, minValue=minValue, maxValue=maxValue,
-                                      cc=self.set, dc=self.set, pre=3)
-
-    def get(self, *args):
-        try:
-            value = getattr(getCurves()[0], self.name.lower()).get()
-            self.attr.setValue(value)
-        except AttributeError:
-            pass
-
-    def set(self, *args):
-        getattr(getCurves()[0], self.name.lower()).set(self.attr.getValue())
-
-    def setEnable(self, val):
-        self.attr.setEnable(val)
+        self.attr_.setEnable(val)
 
 
 def getCurves():
-    sel = pm.ls(sl=True, l=True, type='transform')
+    sel = pm.ls(sl=True, l=True, type=pm.nt.Transform)
     curveList = []
     if sel:
         for i in sel:
