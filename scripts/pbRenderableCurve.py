@@ -16,7 +16,7 @@ class UI(object):
                         self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:', cw2=[72, 192])
                         with pm.rowLayout(nc=2):
                             self.bRenderable = pm.checkBox(l='Renderable', cc=self.bcRenderable)
-                            pm.checkBox(l='Mesh Selection')
+                            # pm.checkBox(l='Mesh Selection')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
@@ -148,8 +148,10 @@ class Curve(object):
         self.brush = pm.createNode('brush', name='{0}Brush'.format(self.curve))
         self.stroke = pm.stroke(name='{0}Stroke'.format(self.curve), seed=0, pressure=True)
 
-        self.brush.outBrush.connect(self.stroke.brush)
-        pm.connectAttr('time1.outTime', self.brush.time)
+        # self.brush.outBrush.connect(self.stroke.brush)
+        self.brush.outBrush >> self.stroke.brush
+        # pm.connectAttr('time1.outTime', self.brush.time)
+        pm.PyNode('time1').outTime >> self.brush.time
 
         # Brush Defualts
         self.brush.brushWidth.set(1)
@@ -171,7 +173,8 @@ class Curve(object):
         self.stroke.useNormal.set(0)
         self.stroke.normalY.set(1.0)
 
-        self.curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
+        # self.curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
+        self.curve.ws >> self.stroke.getShape().pathCurve[0].curve
 
         self.stroke.perspective.set(1)
         self.stroke.displayPercent.set(100.0)
@@ -185,7 +188,8 @@ class Curve(object):
         # output mesh stuff
         meshName = self.brush.replace('Brush', "Mesh")
         self.mesh = pm.createNode('mesh', n='%sShape' % meshName)
-        self.stroke.getShape().worldMainMesh[0].connect(self.mesh.inMesh)
+        # self.stroke.getShape().worldMainMesh[0].connect(self.mesh.inMesh)
+        self.stroke.getShape().worldMainMesh[0] >> self.mesh.inMesh
 
         # Display mesh as ref
         self.mesh.overrideEnabled.set(1)
