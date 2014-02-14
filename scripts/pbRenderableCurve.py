@@ -15,7 +15,7 @@ class UI(object):
                     with pm.columnLayout():
                         self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:', cw2=[72, 192])
                         with pm.rowLayout(nc=2):
-                            self.renderableUI = pm.checkBox(l='Renderable', cc=self.bcRenderable)
+                            self.bRenderable = pm.checkBox(l='Renderable', cc=self.bcRenderable)
                             pm.checkBox(l='Mesh Selection')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
@@ -38,35 +38,22 @@ class UI(object):
         curves = getCurves()
         if len(curves) == 1:
             self.selField.setText(curves[0])
-
-    def refresh_(self):
-        # try:
-        curves = getCurves()
-        if len(curves) == 1:
-            self.selField.setText(curves[0])
-            if curves[0].isRenderable():
-                self.renderableUI.setValue(True)
-                if curves[0].hasShell():
-                    self.bShell.setValue(True)
-                self.getValues()
+            self.getValues(curves)
 
         elif len(curves) > 1:
-            self.selField.setText('{0} Curves Selected'.format(len(curves)))
-            self.renderableUI.setValue(all(i.isRenderable() for i in curves))
-            self.bShell.setValue(curves[0].hasShell())
-            self.getValues()
+            self.selField.setText('%s Curves Selected' % len(curves))
+            if all(i.isRenderable() for i in curves):
+                self.getValues(curves)
 
         else:
             self.selField.setText('No Curves Selected')
-            self.renderableUI.setValue(False)
+            self.bRenderable.setValue(False)
             self.bShell.setValue(False)
             for i in self.meshAttrs:
                 i.setEnable(False)
 
             for i in self.shellAttrs:
                 i.setEnable(False)
-        # except:
-            # pm.warning('ScriptJob Failed!')
 
     def bcRenderable(self, *args):
         curves = getCurves()
@@ -87,16 +74,30 @@ class UI(object):
         curves[0].curve.select()
         self.refresh()
 
-    def getValues(self):
-        curves = getCurves()
-        for i in self.meshAttrs:
-            i.get()
-            i.setEnable(True)
-
-        if curves[0].hasShell():
-            for i in self.shellAttrs:
+    def getValues(self, curves):
+        if curves[0].isRenderable():
+            self.bRenderable.setValue(True)
+            for i in self.meshAttrs:
                 i.get()
                 i.setEnable(True)
+
+            if curves[0].hasShell():
+                self.bShell.setValue(True)
+                for i in self.shellAttrs:
+                    i.get()
+                    i.setEnable(True)
+            else:
+                self.bShell.setValue(False)
+                for i in self.shellAttrs:
+                    i.setEnable(False)
+
+        else:
+            self.bRenderable.setValue(False)
+            self.bShell.setValue(False)
+            for i in self.meshAttrs:
+                i.setEnable(False)
+            for i in self.shellAttrs:
+                i.setEnable(False)
 
 
 class Curve(object):
@@ -211,16 +212,16 @@ class Curve(object):
 
 
 class AttrSlider(object):
-    def __init__(self, value=0, minValue=0, maxValue=32, name=None, obj=None, type_='int'):
+    def __init__(self, value=0, minValue=0, maxValue=32, name=None, obj=None, type_='int', en=False):
         self.name = name
         self.obj = obj
 
         if type_ == 'float':
             self.attr_ = pm.floatSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
-                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128])
+                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128], en=en)
         elif type_ == 'int':
             self.attr_ = pm.intSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
-                                         cc=self.set, dc=self.set, cw3=[72, 64, 128])
+                                         cc=self.set, dc=self.set, cw3=[72, 64, 128], en=en)
         else:
             raise AttributeError('%s is not a valid type' % type_)
 
