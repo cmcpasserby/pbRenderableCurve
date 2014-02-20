@@ -22,7 +22,7 @@ class UI(object):
                     with pm.columnLayout():
                         self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float', fmn=0.0001),
                                           AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves, fmn=3, fmx=100),
-                                          AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=32)]
+                                          AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=128)]
 
                 with pm.frameLayout('Shell Settings:', cll=True, bs='out') as self.shellUI:
                     with pm.columnLayout():
@@ -228,7 +228,7 @@ class AttrSlider(object):
 
         if type_ == 'float':
             self.attr_ = pm.floatSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
-                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128], en=en, fmx=fmx, fmn=fmn)
+                                           cc=self.set, dc=self.set, pre=5, cw3=[72, 64, 128], en=en, fmx=fmx, fmn=fmn)
         elif type_ == 'int':
             self.attr_ = pm.intSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
                                          cc=self.set, dc=self.set, cw3=[72, 64, 128], en=en, fmn=fmn, fmx=fmx)
@@ -251,10 +251,14 @@ class AttrSlider(object):
 
 
 def getCurves():
-    sel = pm.ls(sl=True, l=True, type=pm.nt.Transform)
+    sel = pm.selected()
     curveList = []
     if sel:
-        for i in sel:
-            if isinstance(i.getShape(), pm.nt.NurbsCurve):
-                curveList.append(Curve(i))
+        if isinstance(sel[0], pm.NurbsCurveCV):
+            sel = list(set([i.node().getParent() for i in sel]))
+
+        if all(isinstance(i, pm.nt.Transform) for i in sel):
+            for i in sel:
+                if isinstance(i.getShape(), pm.nt.NurbsCurve):
+                    curveList.append(Curve(i))
     return curveList
