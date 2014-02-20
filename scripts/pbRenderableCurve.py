@@ -232,8 +232,6 @@ class AttrSlider(object):
         elif type_ == 'int':
             self.attr_ = pm.intSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
                                          cc=self.set, dc=self.set, cw3=[72, 64, 128], en=en, fmn=fmn, fmx=fmx)
-        else:
-            raise AttributeError('%s is not a valid type' % type_)
 
     def get(self, *args):
         try:
