@@ -20,15 +20,15 @@ class UI(object):
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
-                        self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float'),
-                                          AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves),
-                                          AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves)]
+                        self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float', fmn=0.0001),
+                                          AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves, fmn=3, fmx=100),
+                                          AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=32)]
 
                 with pm.frameLayout('Shell Settings:', cll=True, bs='out') as self.shellUI:
                     with pm.columnLayout():
                         self.bShell = pm.checkBox(l='Enable Shell', cc=self.bcShell)
                         self.shellAttrs = [AttrSlider(value=1, minValue=-64, maxValue=64, name='ShellThickness', obj=getCurves, type_='float'),
-                                           AttrSlider(value=1, minValue=1, maxValue=64, name='ShellDivisions', obj=getCurves)]
+                                           AttrSlider(value=1, minValue=1, maxValue=64, name='ShellDivisions', obj=getCurves, fmn=1, fmx=32)]
 
         window.show()
         pm.scriptJob(event=['SelectionChanged', self.refresh], protected=True, p=window)
@@ -42,8 +42,7 @@ class UI(object):
 
         elif len(curves) > 1:
             self.selField.setText('%s Curves Selected' % len(curves))
-            if all(i.isRenderable() for i in curves):
-                self.getValues(curves)
+            self.getValues(curves)
 
         else:
             self.selField.setText('No Curves Selected')
@@ -57,31 +56,37 @@ class UI(object):
 
     def bcRenderable(self, *args):
         curves = getCurves()
-        if not curves[0].isRenderable():
-            curves[0].makeRenderable()
+
+        if not all(i.isRenderable() for i in curves):
+            for i in curves:
+                i.makeRenderable()
         else:
-            curves[0].makeNonRenderable()
+            for i in curves:
+                i.makeNonRenderable()
+        pm.select([i.curve for i in curves])
         self.refresh()
 
     def bcShell(self, *args):
         curves = getCurves()
-        if curves[0].isRenderable():
-            if not curves[0].hasShell():
-                curves[0].makeShell()
+        if all(i.isRenderable() for i in curves):
+            if not all(i.hasShell() for i in curves):
+                for i in curves:
+                    i.makeShell()
             else:
-                curves[0].makeNonShell()
+                for i in curves:
+                    i.makeNonShell()
 
-        curves[0].curve.select()
+        pm.select([i.curve for i in curves])
         self.refresh()
 
     def getValues(self, curves):
-        if curves[0].isRenderable():
+        if all(i.isRenderable() for i in curves):
             self.bRenderable.setValue(True)
             for i in self.meshAttrs:
                 i.get()
                 i.setEnable(True)
 
-            if curves[0].hasShell():
+            if all(i.hasShell() for i in curves):
                 self.bShell.setValue(True)
                 for i in self.shellAttrs:
                     i.get()
@@ -125,32 +130,32 @@ class Curve(object):
         return str(self.curve)
 
     def makeRenderable(self):
-        self.createBrush()
-        self.strokeToMesh()
-        self.curve.select()
+        if not self.isRenderable():
+            self.createBrush()
+            self.strokeToMesh()
 
     def makeNonRenderable(self):
-        if self.hasShell():
-            self.makeNonShell()
-        mesh = self.stroke.worldMainMesh[0].connections(shapes=True, type=pm.nt.Mesh)
-        pm.delete(self.brush)
-        pm.delete(self.stroke.getParent())
-        pm.delete(mesh[0].getParent())
+        if self.isRenderable():
+            if self.hasShell():
+                self.makeNonShell()
+            mesh = self.stroke.worldMainMesh[0].connections(shapes=True, type=pm.nt.Mesh)
+            pm.delete(self.brush)
+            pm.delete(self.stroke.getParent())
+            pm.delete(mesh[0].getParent())
 
     def makeShell(self):
-        self.ExtrudeNode = pm.polyExtrudeFacet(self.mesh, thickness=1)
+        if not self.hasShell():
+            self.ExtrudeNode = pm.polyExtrudeFacet(self.mesh, thickness=1)
 
     def makeNonShell(self):
-        pm.delete(self.extrudeNode)
-        self.curve.select()
+        if self.hasShell():
+            pm.delete(self.extrudeNode)
 
     def createBrush(self):
         self.brush = pm.createNode('brush', name='{0}Brush'.format(self.curve))
         self.stroke = pm.stroke(name='{0}Stroke'.format(self.curve), seed=0, pressure=True)
 
-        # self.brush.outBrush.connect(self.stroke.brush)
         self.brush.outBrush >> self.stroke.brush
-        # pm.connectAttr('time1.outTime', self.brush.time)
         pm.PyNode('time1').outTime >> self.brush.time
 
         # Brush Defualts
@@ -173,7 +178,6 @@ class Curve(object):
         self.stroke.useNormal.set(0)
         self.stroke.normalY.set(1.0)
 
-        # self.curve.ws.connect(self.stroke.getShape().pathCurve[0].curve)
         self.curve.ws >> self.stroke.getShape().pathCurve[0].curve
 
         self.stroke.perspective.set(1)
@@ -188,8 +192,10 @@ class Curve(object):
         # output mesh stuff
         meshName = self.brush.replace('Brush', "Mesh")
         self.mesh = pm.createNode('mesh', n='%sShape' % meshName)
-        # self.stroke.getShape().worldMainMesh[0].connect(self.mesh.inMesh)
         self.stroke.getShape().worldMainMesh[0] >> self.mesh.inMesh
+
+        # Parent Stroke to mesh to clean up outliner
+        self.stroke.setParent(self.mesh.getParent())
 
         # Display mesh as ref
         self.mesh.overrideEnabled.set(1)
@@ -216,16 +222,16 @@ class Curve(object):
 
 
 class AttrSlider(object):
-    def __init__(self, value=0, minValue=0, maxValue=32, name=None, obj=None, type_='int', en=False):
+    def __init__(self, value=0, minValue=0, maxValue=32, name=None, obj=None, type_='int', en=False, fmx=10000, fmn=-10000):
         self.name = name
         self.obj = obj
 
         if type_ == 'float':
             self.attr_ = pm.floatSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
-                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128], en=en)
+                                           cc=self.set, dc=self.set, pre=3, cw3=[72, 64, 128], en=en, fmx=fmx, fmn=fmn)
         elif type_ == 'int':
             self.attr_ = pm.intSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
-                                         cc=self.set, dc=self.set, cw3=[72, 64, 128], en=en)
+                                         cc=self.set, dc=self.set, cw3=[72, 64, 128], en=en, fmn=fmn, fmx=fmx)
         else:
             raise AttributeError('%s is not a valid type' % type_)
 
@@ -237,7 +243,8 @@ class AttrSlider(object):
             pass
 
     def set(self, *args):
-        getattr(self.obj()[0], self.name.lower()).set(self.attr_.getValue())
+        for i in self.obj():
+            getattr(i, self.name.lower()).set(self.attr_.getValue())
 
     def setEnable(self, val):
         self.attr_.setEnable(val)
