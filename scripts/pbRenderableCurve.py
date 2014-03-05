@@ -226,6 +226,8 @@ class AttrSlider(object):
         self.name = name
         self.obj = obj
 
+        self.undoState = False
+
         if type_ == 'float':
             self.attr_ = pm.floatSliderGrp(field=True, l=self.name, value=value, minValue=minValue, maxValue=maxValue,
                                            cc=self.set, dc=self.set, pre=5, cw3=[72, 64, 128], en=en, fmx=fmx, fmn=fmn)
@@ -240,9 +242,17 @@ class AttrSlider(object):
         except AttributeError:
             pass
 
-    def set(self, *args):
+    def set(self, cc=False):
+        if not cc and not self.undoState:
+            self.undoState = True
+            pm.undoInfo(openChunk=True)
+
         for i in self.obj():
             getattr(i, self.name.lower()).set(self.attr_.getValue())
+
+        if cc and self.undoState:
+            pm.undoInfo(closeChunk=True)
+            self.undoState = False
 
     def setEnable(self, val):
         self.attr_.setEnable(val)
