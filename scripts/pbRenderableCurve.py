@@ -16,7 +16,6 @@ class UI(object):
                         self.selField = pm.textFieldGrp(text='No Curves Selected', ed=False, l='Curve:', cw2=[72, 192])
                         with pm.rowLayout(nc=2):
                             self.bRenderable = pm.checkBox(l='Renderable', cc=self.bcRenderable)
-                            # pm.checkBox(l='Mesh Selection')
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
