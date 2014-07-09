@@ -122,7 +122,7 @@ class Curve(object):
 
             if self.hasShell():
                 self.extrudeNode = self.mesh.getShape().connections(type=pm.nt.PolyExtrudeFace)[0]
-                self.shellthickness = self.extrudeNode.thickness
+                self.shellthickness = self.extrudeNode.localTranslateZ
                 self.shelldivisions = self.extrudeNode.divisions
 
     def __str__(self):
@@ -144,7 +144,7 @@ class Curve(object):
 
     def makeShell(self):
         if not self.hasShell():
-            self.ExtrudeNode = pm.polyExtrudeFacet(self.mesh, thickness=1)
+            self.ExtrudeNode = pm.polyExtrudeFacet(self.mesh, ltz=1)
 
     def makeNonShell(self):
         if self.hasShell():
