@@ -19,7 +19,11 @@ class UI(object):
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
-                        self.useNormal = pm.checkBox(l='Use Normal', cc=self.bcUseNormal)
+                        with pm.rowLayout(nc=4):
+                            self.useNormal = pm.checkBox(l='Use Normal', cc=self.bcUseNormal)
+                            self.normalVector = [pm.intField(width=62, en=False, value=0),
+                                                 pm.intField(width=62, en=False, value=1),
+                                                 pm.intField(width=62, en=False, value=0)]
                         self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float', fmn=0.0001),
                                           AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves, fmn=3, fmx=100),
                                           AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=128)]
