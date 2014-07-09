@@ -4,7 +4,7 @@ import pymel.core as pm
 class UI(object):
     def __init__(self):
         title = 'pbRenderableCurve'
-        version = 1.0
+        version = 1.02
 
         if pm.window('pbRCurve', exists=True):
             pm.deleteUI('pbRCurve')
@@ -19,6 +19,7 @@ class UI(object):
 
                 with pm.frameLayout(l='Mesh Settings:', cll=True, bs='out') as self.meshUI:
                     with pm.columnLayout():
+                        self.useNormal = pm.checkBox(l='Use Normal', cc=self.bcUseNormal)
                         self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float', fmn=0.0001),
                                           AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves, fmn=3, fmx=100),
                                           AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=128)]
@@ -95,6 +96,11 @@ class UI(object):
                 for i in self.shellAttrs:
                     i.setEnable(False)
 
+            if all(i.usesNormal() for i in curves):
+                self.useNormal.setValue(True)
+            else:
+                self.useNormal.setValue(False)
+
         else:
             self.bRenderable.setValue(False)
             self.bShell.setValue(False)
@@ -102,6 +108,19 @@ class UI(object):
                 i.setEnable(False)
             for i in self.shellAttrs:
                 i.setEnable(False)
+
+    def bcUseNormal(self, *args):
+        curves = getCurves()
+        if all(i.isRenderable() for i in curves):
+            if not all(i.usesNormal() for i in curves):
+                for i in curves:
+                    i.useNormal(True)
+            else:
+                for i in curves:
+                    i.useNormal(False)
+
+        pm.select([i.curve for i in curves])
+        self.refresh()
 
 
 class Curve(object):
@@ -220,6 +239,12 @@ class Curve(object):
             return True
         else:
             return False
+
+    def useNormal(self, val):
+        self.stroke.useNormal.set(val)
+
+    def usesNormal(self):
+        return self.stroke.useNormal.get()
 
 
 class AttrSlider(object):
