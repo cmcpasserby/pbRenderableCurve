@@ -211,9 +211,7 @@ class Curve(object):
 
         # set divisions
         spans = self.curve.spans.get()
-        # deg = self.curve.degree.get() # Clashes with the degree() method in
-        # 2013 and 2014 FIXME
-        deg = pm.getAttr('%s.degree' % self.curve)
+        deg = self.curve.attr('degree').get()
         samples = (spans + 1) * deg
         if deg > 1:
             samples = (spans * 5) + 1
