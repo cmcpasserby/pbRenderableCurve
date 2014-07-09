@@ -21,9 +21,9 @@ class UI(object):
                     with pm.columnLayout():
                         with pm.rowLayout(nc=4):
                             self.useNormal = pm.checkBox(l='Use Normal', cc=self.bcUseNormal)
-                            self.normalVector = [pm.intField(width=62, en=False, value=0),
-                                                 pm.intField(width=62, en=False, value=1),
-                                                 pm.intField(width=62, en=False, value=0)]
+                            self.normalVector = [pm.intField(width=62, en=False, value=0, cc=self.setNormal),
+                                                 pm.intField(width=62, en=False, value=1, cc=self.setNormal),
+                                                 pm.intField(width=62, en=False, value=0, cc=self.setNormal)]
                         self.meshAttrs = [AttrSlider(maxValue=128, name='Thickness', obj=getCurves, type_='float', fmn=0.0001),
                                           AttrSlider(value=3, minValue=3, maxValue=64, name='Sides', obj=getCurves, fmn=3, fmx=100),
                                           AttrSlider(minValue=1, maxValue=32, name='Samples', obj=getCurves, fmn=1, fmx=128)]
@@ -52,10 +52,14 @@ class UI(object):
             self.selField.setText('No Curves Selected')
             self.bRenderable.setValue(False)
             self.bShell.setValue(False)
+            self.useNormal.setValue(False)
             for i in self.meshAttrs:
                 i.setEnable(False)
 
             for i in self.shellAttrs:
+                i.setEnable(False)
+
+            for i in self.normalVector:
                 i.setEnable(False)
 
     def bcRenderable(self, *args):
@@ -102,15 +106,24 @@ class UI(object):
 
             if all(i.usesNormal() for i in curves):
                 self.useNormal.setValue(True)
+                nVector = curves[0].stroke.normal.get()
+                for i in range(3):
+                    self.normalVector[i].setValue(nVector[i])
+                    self.normalVector[i].setEnable(True)
             else:
                 self.useNormal.setValue(False)
+                for i in self.normalVector:
+                    i.setEnable(False)
 
         else:
             self.bRenderable.setValue(False)
             self.bShell.setValue(False)
+            self.useNormal.setValue(False)
             for i in self.meshAttrs:
                 i.setEnable(False)
             for i in self.shellAttrs:
+                i.setEnable(False)
+            for i in self.normalVector:
                 i.setEnable(False)
 
     def bcUseNormal(self, *args):
@@ -122,9 +135,17 @@ class UI(object):
             else:
                 for i in curves:
                     i.useNormal(False)
+        else:
+            self.useNormal.setValue(False)
 
         pm.select([i.curve for i in curves])
         self.refresh()
+
+    def setNormal(self, *args):
+        curves = getCurves()
+        nrms = [i.getValue() for i in self.normalVector]
+        for i in curves:
+            i.stroke.normal.set(nrms)
 
 
 class Curve(object):
