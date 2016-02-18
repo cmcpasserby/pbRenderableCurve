@@ -13,3 +13,5 @@ import pbRenderableCurve
 pbRenderableCurve.UI()
 ```
 Optionally you could create a shelf button containing the same python code as above.
+
+![pbRenderableCurve](http://rightsomegoodgames.ca/assets/images/pbRenderableCurve02.jpg)
